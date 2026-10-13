@@ -1,0 +1,286 @@
+!=====================================================================
+! PROJET RESEAU ET SECURITE - ADMINISTRATION DE L'ACCES INTERNET DU CAMPUS
+! FICHIER DE CONFIGURATION FINAL - MAQUETTE DE L'EXISTANT (Packet Tracer)
+!=====================================================================
+! Lecture : les blocs "CLI" se collent dans l'onglet CLI de chaque equipement.
+! Les plans d'adressage (section 2) sont des PROPOSITIONS : a adapter
+! si vos releves terrain donnent d'autres plages.
+!=====================================================================
+
+
+!=====================================================================
+! 1. PLAN DE CABLAGE
+!=====================================================================
+! Cloud-PT (eth0)           <-->  R0 (Gi0/0)
+! R0 (Gi0/1)                <-->  R1 (Gi0/0)
+! R1 (Gi0/1)                <-->  SW-CORE (Fa0/4)            [baie technique]
+! SW-CORE (Fa0/2)           <-->  Serveur0 (Fa0)
+! SW-CORE (Fa0/3)           <-->  SW-BAT-B (Fa0/1)
+! SW-BAT-B (Fa0/2) (*)      <-->  NanoStation B (0/0)
+! SW-BAT-B (Fa0/3)          <-->  PC0 (Fa0)
+! SW-BAT-B (Fa0/4)          <-->  PC1 (Fa0)
+! SW-BAT-B (Fa0/5)          <-->  PC2 (Fa0)
+! SW-BAT-B (Fa0/6)          <-->  PC3 (Fa0)
+! NanoStation B (0/1)       <-->  Bridge0 (Eth0/1)
+! Bridge0 (Eth1/1)          <-->  NanoStation A (0/1)
+! NanoStation A (0/0)       <-->  SW-BAT-A (Fa0/1)
+! SW-BAT-A (Fa0/2)          <-->  Access Point (Fa0)
+! SW-BAT-A (Fa0/4)          <-->  PC7 (Fa0)
+! SW-BAT-A (Fa0/5)          <-->  PC5 (Fa0)
+! SW-BAT-A (Fa0/6)          <-->  PC4 (Fa0)
+! SW-BAT-A (Fa0/7)          <-->  PC6 (Fa0)
+!
+! (*) Le port Fa0/1 de SW-BAT-B est deja utilise par la liaison vers
+!     SW-CORE. Le lien vers la NanoStation B est donc place sur Fa0/2.
+!     Si votre .pkt utilise un autre port, modifiez uniquement la
+!     ligne "interface" correspondante dans le bloc SW-BAT-B.
+
+
+!=====================================================================
+! 2. PLAN D'ADRESSAGE (PROPOSITION)
+!=====================================================================
+! Liaison operateur CAMTEL : 203.0.113.0/30
+!     Passerelle operateur (Cloud) : 203.0.113.1
+!     R0 Gi0/0                     : 203.0.113.2
+! Liaison R0 - R1 : 10.0.0.0/30
+!     R0 Gi0/1 : 10.0.0.1      R1 Gi0/0 : 10.0.0.2
+! LAN campus (batiments A et B) : 192.168.10.0/24
+!     R1 Gi0/1 (passerelle)  : 192.168.10.1
+!     SW-CORE   (gestion)    : 192.168.10.2
+!     SW-BAT-B  (gestion)    : 192.168.10.3
+!     SW-BAT-A  (gestion)    : 192.168.10.4
+!     Serveur0               : 192.168.10.10 (statique)
+!     Postes (PC0 a PC7) et portables : DHCP, plage 192.168.10.50 - .254
+!     DNS distribue : 8.8.8.8
+
+
+!=====================================================================
+! 3. CONFIGURATIONS CLI
+!=====================================================================
+
+!---------------------------------------------------------------------
+! R0 (Cisco 2911) - routeur de sortie vers CAMTEL, NAT/PAT
+!---------------------------------------------------------------------
+enable
+configure terminal
+hostname R0
+no ip domain-lookup
+!
+interface GigabitEthernet0/0
+ description Vers Cloud-PT (CAMTEL)
+ ip address 203.0.113.2 255.255.255.252
+ ip nat outside
+ no shutdown
+!
+interface GigabitEthernet0/1
+ description Vers R1 (Gi0/0)
+ ip address 10.0.0.1 255.255.255.252
+ ip nat inside
+ no shutdown
+!
+ip route 0.0.0.0 0.0.0.0 203.0.113.1
+ip route 192.168.10.0 255.255.255.0 10.0.0.2
+!
+access-list 1 permit 192.168.10.0 0.0.0.255
+ip nat inside source list 1 interface GigabitEthernet0/0 overload
+!
+end
+write memory
+
+
+!---------------------------------------------------------------------
+! R1 (Cisco 2901) - passerelle du campus, DHCP
+!---------------------------------------------------------------------
+enable
+configure terminal
+hostname R1
+no ip domain-lookup
+!
+interface GigabitEthernet0/0
+ description Vers R0 (Gi0/1)
+ ip address 10.0.0.2 255.255.255.252
+ no shutdown
+!
+interface GigabitEthernet0/1
+ description Vers SW-CORE (Fa0/4)
+ ip address 192.168.10.1 255.255.255.0
+ no shutdown
+!
+ip route 0.0.0.0 0.0.0.0 10.0.0.1
+!
+ip dhcp excluded-address 192.168.10.1 192.168.10.49
+ip dhcp pool CAMPUS
+ network 192.168.10.0 255.255.255.0
+ default-router 192.168.10.1
+ dns-server 8.8.8.8
+!
+end
+write memory
+
+
+!---------------------------------------------------------------------
+! SW-CORE (Catalyst 2960-24TT) - baie technique
+!---------------------------------------------------------------------
+enable
+configure terminal
+hostname SW-CORE
+no ip domain-lookup
+!
+interface FastEthernet0/2
+ description Vers Serveur0 (Fa0)
+ no shutdown
+!
+interface FastEthernet0/3
+ description Vers SW-BAT-B (Fa0/1)
+ no shutdown
+!
+interface FastEthernet0/4
+ description Vers R1 (Gi0/1)
+ no shutdown
+!
+interface Vlan1
+ description Gestion
+ ip address 192.168.10.2 255.255.255.0
+ no shutdown
+!
+ip default-gateway 192.168.10.1
+!
+end
+write memory
+
+
+!---------------------------------------------------------------------
+! SW-BAT-B (Catalyst 2960-24TT) - batiment B
+!---------------------------------------------------------------------
+enable
+configure terminal
+hostname SW-BAT-B
+no ip domain-lookup
+!
+interface FastEthernet0/1
+ description Vers SW-CORE (Fa0/3)
+ no shutdown
+!
+interface FastEthernet0/2
+ description Vers NanoStation B (0/0)
+ no shutdown
+!
+interface FastEthernet0/3
+ description Vers PC0
+ no shutdown
+!
+interface FastEthernet0/4
+ description Vers PC1
+ no shutdown
+!
+interface FastEthernet0/5
+ description Vers PC2
+ no shutdown
+!
+interface FastEthernet0/6
+ description Vers PC3
+ no shutdown
+!
+interface Vlan1
+ description Gestion
+ ip address 192.168.10.3 255.255.255.0
+ no shutdown
+!
+ip default-gateway 192.168.10.1
+!
+end
+write memory
+
+
+!---------------------------------------------------------------------
+! SW-BAT-A (Catalyst 2960-24TT) - batiment A (switch central)
+!---------------------------------------------------------------------
+enable
+configure terminal
+hostname SW-BAT-A
+no ip domain-lookup
+!
+interface FastEthernet0/1
+ description Vers NanoStation A (0/0)
+ no shutdown
+!
+interface FastEthernet0/2
+ description Vers Access Point (Fa0)
+ no shutdown
+!
+interface FastEthernet0/4
+ description Vers PC7
+ no shutdown
+!
+interface FastEthernet0/5
+ description Vers PC5
+ no shutdown
+!
+interface FastEthernet0/6
+ description Vers PC4
+ no shutdown
+!
+interface FastEthernet0/7
+ description Vers PC6
+ no shutdown
+!
+interface Vlan1
+ description Gestion
+ ip address 192.168.10.4 255.255.255.0
+ no shutdown
+!
+ip default-gateway 192.168.10.1
+!
+end
+write memory
+
+
+!=====================================================================
+! 4. EQUIPEMENTS CONFIGURES VIA L'INTERFACE GRAPHIQUE
+!=====================================================================
+
+!--- Serveur0 (onglet Desktop > IP Configuration, Static)
+!     IP : 192.168.10.10   Masque : 255.255.255.0
+!     Passerelle : 192.168.10.1   DNS : 8.8.8.8
+
+!--- PC0 a PC7 (onglet Desktop > IP Configuration)
+!     Choisir DHCP (adresse recue de R1, plage 192.168.10.50 et suivantes)
+
+!--- Access Point (onglet Config > Port 1 > Wireless)
+!     SSID : CAMPUS-ETUDIANTS
+!     Authentification : WPA2-PSK
+!     Mot de passe : a definir (exemple : Campus@2026)
+!
+!--- Laptop0 et Laptop1 (Wi-Fi)
+!     Config > Wireless0 : memes SSID et mot de passe que l'Access Point
+!     IP : DHCP
+
+!--- NanoStation B, Bridge0, NanoStation A
+!     Equipements de liaison transparents (couche 2) : aucune adresse IP
+!     a configurer, il suffit que toutes les interfaces soient actives.
+!     Si votre NanoStation est un equipement a CLI (routeur ou switch)
+!     dont les ports sont "shutdown", lancer sur chaque port utilise :
+!         enable
+!         configure terminal
+!         interface <port>
+!          no shutdown
+
+!--- Cloud-PT
+!     Aucun reglage de configuration IP. La passerelle 203.0.113.1 n'existe
+!     pas physiquement dans Packet Tracer : le test vers "internet" n'est
+!     donc pas possible. Pour le simuler, ajouter derriere le Cloud un
+!     serveur configure en 203.0.113.1 / 255.255.255.252.
+
+
+!=====================================================================
+! 5. TESTS DE VERIFICATION (a capturer pour la documentation)
+!=====================================================================
+! Sur R1       : show ip dhcp binding
+! Sur chaque equipement : show ip interface brief
+! PC0 > ping 192.168.10.1      (passerelle R1)
+! PC0 > ping 192.168.10.10     (serveur, baie technique)
+! PC0 > ping <IP de PC7>       (batiment B vers batiment A, via la liaison radio)
+! PC6 > ping <IP de PC1>       (batiment A vers batiment B)
+! Laptop0 > ping 192.168.10.10 (Wi-Fi vers serveur)
+! R0 > ping 10.0.0.2           (liaison R0-R1)
+!=====================================================================
