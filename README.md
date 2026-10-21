@@ -1,5 +1,9 @@
 # Administration de l'accès internet du campus ISESTMA
 
+
+![Statut](https://img.shields.io/badge/phase-2%20conception-blue)
+![Filière](https://img.shields.io/badge/BTS%20N2-R%C3%A9seaux%20et%20S%C3%A9curit%C3%A9-1F3A8A)
+![Année](https://img.shields.io/badge/ann%C3%A9e-2026--2027-C99A2E)
 > Étude du réseau existant d'un campus universitaire et conception d'une solution d'administration de l'accès internet fondée sur un **annuaire d'identités** (LDAP), une **authentification réseau et Wi-Fi** (RADIUS / 802.1X) et un **contrôle d'accès par groupe** (ACL, pare-feu, VLAN).
 
 Projet de **BTS Réseaux et Sécurité - Niveau 2** réalisé à l'**ISESTMA** (Institut Supérieur d'Études Scientifiques, Technologiques et Managériales), année académique 2026-2027, dans le cadre du cours *Authentification des services d'annuaire et administration des SE réseaux*.
